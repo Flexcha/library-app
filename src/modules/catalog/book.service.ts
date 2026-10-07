@@ -161,12 +161,26 @@ export class BookService {
       throw new ConflictError('A book with this ISBN already exists', 'DUPLICATE_ISBN');
     }
 
+    // Resolve publisher ID from string name if provided
+    let finalPublisherId = data.publisherId || null;
+    const pubName = (data as any).publisherName ?? (data as any).publisher;
+    if (pubName && typeof pubName === 'string' && pubName.trim()) {
+      const trimmed = pubName.trim();
+      let pub = await prisma.publisher.findFirst({
+        where: { name: { equals: trimmed, mode: 'insensitive' } },
+      });
+      if (!pub) {
+        pub = await prisma.publisher.create({ data: { name: trimmed } });
+      }
+      finalPublisherId = pub.id;
+    }
+
     const book = await prisma.book.create({
       data: {
         isbn: data.isbn,
         title: data.title,
         subtitle: data.subtitle,
-        publisherId: data.publisherId || null,
+        publisherId: finalPublisherId,
         categoryId: data.categoryId || null,
         language: data.language || 'Vietnamese',
         edition: data.edition,
@@ -176,6 +190,15 @@ export class BookService {
         coverImageUrl: data.coverImageUrl,
       },
     });
+
+    // Generate initial book copies if specified (default 1 copy)
+    const initialCopiesCount = Math.max(1, Number((data as any).initialCopies) || 1);
+    const copiesData = Array.from({ length: initialCopiesCount }, (_, i) => ({
+      bookId: book.id,
+      copyCode: `CP-${book.id}-${String(i + 1).padStart(2, '0')}`,
+      status: 'AVAILABLE',
+    }));
+    await prisma.bookCopy.createMany({ data: copiesData });
 
     // Resolve author IDs from both authorIds and input author name(s)
     const resolvedAuthorIds: number[] = [...(data.authorIds || [])];
@@ -228,13 +251,27 @@ export class BookService {
       }
     }
 
+    // Resolve publisher ID from string name if provided
+    let updatedPublisherId: number | null | undefined = data.publisherId !== undefined ? data.publisherId : undefined;
+    const pubName = (data as any).publisherName ?? (data as any).publisher;
+    if (pubName && typeof pubName === 'string' && pubName.trim()) {
+      const trimmed = pubName.trim();
+      let pub = await prisma.publisher.findFirst({
+        where: { name: { equals: trimmed, mode: 'insensitive' } },
+      });
+      if (!pub) {
+        pub = await prisma.publisher.create({ data: { name: trimmed } });
+      }
+      updatedPublisherId = pub.id;
+    }
+
     await prisma.book.update({
       where: { id },
       data: {
         isbn: data.isbn,
         title: data.title,
         subtitle: data.subtitle,
-        publisherId: data.publisherId !== undefined ? data.publisherId : undefined,
+        publisherId: updatedPublisherId,
         categoryId: data.categoryId !== undefined ? data.categoryId : undefined,
         language: data.language,
         edition: data.edition,

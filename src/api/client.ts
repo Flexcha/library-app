@@ -155,6 +155,8 @@ export const api = {
   createAuthor: (data: any) => request('/authors', { method: 'POST', body: JSON.stringify(data) }),
   getCategories: () => request('/categories'),
   createCategory: (data: any) => request('/categories', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategory: (id: number, data: any) => request(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCategory: (id: number) => request(`/categories/${id}`, { method: 'DELETE' }),
   getPublishers: () => request('/publishers'),
   createPublisher: (data: any) => request('/publishers', { method: 'POST', body: JSON.stringify(data) }),
 

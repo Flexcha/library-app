@@ -34,6 +34,8 @@ export const createBookSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   subtitle: z.string().optional(),
   publisherId: z.number().nullable().optional(),
+  publisherName: z.string().optional(),
+  publisher: z.union([z.string(), z.number()]).optional(),
   categoryId: z.number().nullable().optional(),
   authorIds: z.array(z.number()).optional(),
   authorNames: z.union([z.string(), z.array(z.string())]).optional(),
@@ -44,6 +46,7 @@ export const createBookSchema = z.object({
   pageCount: z.number().optional(),
   description: z.string().optional(),
   coverImageUrl: z.string().optional(),
+  initialCopies: z.number().optional(),
 });
 
 export const updateBookSchema = createBookSchema.partial();

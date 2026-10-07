@@ -18,6 +18,9 @@ import {
   X,
   Edit3,
   User,
+  FolderPlus,
+  Trash2,
+  Image,
 } from 'lucide-react';
 
 interface CatalogBrowseProps {
@@ -56,6 +59,13 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
   // Selected book for details modal
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
 
+  // Category Management state
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editCategoryForm, setEditCategoryForm] = useState({ name: '', description: '' });
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+
   // Edit Book state
   const [showEditBookModal, setShowEditBookModal] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
@@ -65,7 +75,7 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
     title: '',
     isbn: '',
     subtitle: '',
-    publisherId: '',
+    publisherName: '',
     categoryId: '',
     authorInput: '',
     language: 'Tiếng Việt',
@@ -104,7 +114,7 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
     title: '',
     isbn: '',
     subtitle: '',
-    publisherId: '',
+    publisherName: '',
     categoryId: '',
     authorInput: '',
     language: 'Tiếng Việt',
@@ -112,6 +122,7 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
     pageCount: 300,
     description: '',
     coverImageUrl: '',
+    initialCopies: 1,
   });
 
   const [copyCodeInput, setCopyCodeInput] = useState('');
@@ -208,8 +219,8 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
     if (!bookForm.categoryId) {
       errs.categoryId = 'Vui lòng chọn thể loại';
     }
-    if (!bookForm.publisherId) {
-      errs.publisherId = 'Vui lòng chọn nhà xuất bản';
+    if (!bookForm.publisherName.trim()) {
+      errs.publisherName = 'Vui lòng nhập tên nhà xuất bản';
     }
     if (!bookForm.authorInput.trim()) {
       errs.authorInput = 'Vui lòng nhập tên tác giả';
@@ -228,7 +239,7 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
         title: bookForm.title.trim(),
         isbn: bookForm.isbn.trim(),
         subtitle: bookForm.subtitle.trim() || undefined,
-        publisherId: parseInt(bookForm.publisherId, 10),
+        publisherName: bookForm.publisherName.trim(),
         categoryId: parseInt(bookForm.categoryId, 10),
         authors: bookForm.authorInput.trim(),
         language: bookForm.language || 'Tiếng Việt',
@@ -236,16 +247,17 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
         pageCount: Number(bookForm.pageCount) || undefined,
         description: bookForm.description.trim() || undefined,
         coverImageUrl: bookForm.coverImageUrl.trim() || undefined,
+        initialCopies: Math.max(1, Number(bookForm.initialCopies) || 1),
       };
 
       await api.createBook(payload);
-      toast.success(`Đã thêm sách "${bookForm.title}" vào danh mục!`, 'Thành Công');
+      toast.success(`Đã thêm sách "${bookForm.title}" vào danh mục thành công!`, 'Thành Công');
       setShowAddBookModal(false);
       setBookForm({
         title: '',
         isbn: '',
         subtitle: '',
-        publisherId: '',
+        publisherName: '',
         categoryId: '',
         authorInput: '',
         language: 'Tiếng Việt',
@@ -253,6 +265,7 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
         pageCount: 300,
         description: '',
         coverImageUrl: '',
+        initialCopies: 1,
       });
       setBookErrors({});
       fetchBooks();
@@ -261,6 +274,59 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
       toast.error(err.message || 'Thêm sách thất bại.');
     } finally {
       setIsSubmittingBook(false);
+    }
+  };
+
+  // Category Management Handlers
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryForm.name.trim()) return;
+    setIsSubmittingCategory(true);
+    try {
+      await api.createCategory({
+        name: categoryForm.name.trim(),
+        description: categoryForm.description.trim() || undefined,
+      });
+      toast.success(`Đã thêm thể loại "${categoryForm.name}"!`, 'Thành Công');
+      setCategoryForm({ name: '', description: '' });
+      fetchFilters();
+    } catch (err: any) {
+      toast.error(err.message || 'Thêm thể loại thất bại.');
+    } finally {
+      setIsSubmittingCategory(false);
+    }
+  };
+
+  const handleUpdateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory || !editCategoryForm.name.trim()) return;
+    setIsSubmittingCategory(true);
+    try {
+      await api.updateCategory(editingCategory.id, {
+        name: editCategoryForm.name.trim(),
+        description: editCategoryForm.description.trim() || undefined,
+      });
+      toast.success(`Đã cập nhật thể loại "${editCategoryForm.name}"!`, 'Thành Công');
+      setEditingCategory(null);
+      setEditCategoryForm({ name: '', description: '' });
+      fetchFilters();
+      fetchBooks();
+    } catch (err: any) {
+      toast.error(err.message || 'Cập nhật thể loại thất bại.');
+    } finally {
+      setIsSubmittingCategory(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catId: number) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa thể loại này?')) return;
+    try {
+      await api.deleteCategory(catId);
+      toast.success('Đã xóa thể loại thành công.');
+      fetchFilters();
+      fetchBooks();
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể xóa thể loại.');
     }
   };
 
@@ -329,14 +395,13 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
 
   const handleOpenEditBook = (b: Book) => {
     setEditingBook(b);
-    const resolvedPublisherId = b.publisherId || b.publisher?.id;
     const resolvedCategoryId = b.categoryId || b.category?.id;
 
     setEditBookForm({
       title: b.title || '',
       isbn: b.isbn || '',
       subtitle: b.subtitle || '',
-      publisherId: resolvedPublisherId ? String(resolvedPublisherId) : '',
+      publisherName: b.publisher?.name || '',
       categoryId: resolvedCategoryId ? String(resolvedCategoryId) : '',
       authorInput: b.authors ? b.authors.map((a) => a.name).join(', ') : '',
       language: b.language || 'Tiếng Việt',
@@ -375,7 +440,7 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
         title: editBookForm.title.trim(),
         isbn: editBookForm.isbn.trim(),
         subtitle: editBookForm.subtitle.trim() || undefined,
-        publisherId: editBookForm.publisherId ? parseInt(editBookForm.publisherId, 10) : undefined,
+        publisherName: editBookForm.publisherName.trim() || undefined,
         categoryId: editBookForm.categoryId ? parseInt(editBookForm.categoryId, 10) : undefined,
         authors: editBookForm.authorInput.trim(),
         language: editBookForm.language || 'Tiếng Việt',
@@ -431,17 +496,27 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
             </p>
           </div>
           {isStaff && (
-            <button
-              type="button"
-              onClick={() => {
-                setBookErrors({});
-                setShowAddBookModal(true);
-              }}
-              className="btn-primary self-start rounded-xl"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Thêm sách mới</span>
-            </button>
+            <div className="flex items-center gap-2 self-start flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(true)}
+                className="btn-secondary rounded-xl flex items-center gap-1.5 py-2 px-3.5 text-xs font-semibold cursor-pointer"
+              >
+                <FolderPlus className="w-4 h-4 text-indigo-400" />
+                <span>Quản lý Thể loại</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBookErrors({});
+                  setShowAddBookModal(true);
+                }}
+                className="btn-primary rounded-xl flex items-center gap-1.5 py-2 px-3.5 text-xs font-bold cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Thêm sách mới</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -708,16 +783,122 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
         openAuthModal={openAuthModal}
       />
 
+      {/* Modal Category Management */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-[#0d1322] border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <FolderPlus className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-bold text-white">Quản Lý Thể Loại Sách</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCategoryModal(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Create Category Form */}
+            <form onSubmit={handleCreateCategory} className="p-3 bg-slate-900/80 rounded-xl border border-white/10 space-y-2">
+              <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider">Thêm Thể Loại Mới</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Tên thể loại * (VD: Khoa Học Máy Tính)"
+                  value={categoryForm.name}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                  className="ui-input text-xs"
+                />
+                <input
+                  type="text"
+                  placeholder="Mô tả ngắn"
+                  value={categoryForm.description}
+                  onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                  className="ui-input text-xs"
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isSubmittingCategory || !categoryForm.name.trim()}
+                  className="btn-primary py-1 px-3 text-xs rounded-lg disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmittingCategory ? 'Đang tạo...' : '+ Thêm thể loại'}
+                </button>
+              </div>
+            </form>
+
+            {/* Category List */}
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Danh Sách Thể Loại Hiện Có ({categories.length})</h4>
+              {categories.map((c) => (
+                <div key={c.id} className="flex items-center justify-between p-2.5 rounded-xl border border-white/5 bg-slate-900/50 text-xs">
+                  {editingCategory?.id === c.id ? (
+                    <form onSubmit={handleUpdateCategory} className="flex items-center gap-2 w-full">
+                      <input
+                        type="text"
+                        value={editCategoryForm.name}
+                        onChange={(e) => setEditCategoryForm({ ...editCategoryForm, name: e.target.value })}
+                        className="ui-input text-xs py-1 flex-1"
+                      />
+                      <input
+                        type="text"
+                        value={editCategoryForm.description}
+                        onChange={(e) => setEditCategoryForm({ ...editCategoryForm, description: e.target.value })}
+                        className="ui-input text-xs py-1 flex-1"
+                      />
+                      <button type="submit" className="text-indigo-400 font-bold px-2 cursor-pointer">Lưu</button>
+                      <button type="button" onClick={() => setEditingCategory(null)} className="text-slate-400 cursor-pointer">Hủy</button>
+                    </form>
+                  ) : (
+                    <>
+                      <div>
+                        <div className="font-semibold text-white">{c.name}</div>
+                        <div className="text-[11px] text-slate-400 line-clamp-1">{c.description || 'Chưa có mô tả'}</div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCategory(c);
+                            setEditCategoryForm({ name: c.name, description: c.description || '' });
+                          }}
+                          className="p-1 text-slate-400 hover:text-indigo-400 rounded cursor-pointer"
+                          title="Sửa thể loại"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCategory(c.id)}
+                          className="p-1 text-slate-400 hover:text-rose-400 rounded cursor-pointer"
+                          title="Xóa thể loại"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Add Book */}
       {showAddBookModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#0d1322] border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-[#0d1322] border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-lg font-bold text-white">Biên mục Sách Mới</h3>
               <button
                 type="button"
                 onClick={() => setShowAddBookModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -734,6 +915,17 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
                   className="ui-input"
                 />
                 {bookErrors.title && <p className="text-xs text-rose-400 mt-1">{bookErrors.title}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Phụ đề</label>
+                <input
+                  type="text"
+                  value={bookForm.subtitle}
+                  onChange={(e) => setBookForm({ ...bookForm, subtitle: e.target.value })}
+                  placeholder="Nhập phụ đề sách (nếu có)..."
+                  className="ui-input"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -773,7 +965,7 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Thể loại *</label>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Thể loại * (Tự chọn)</label>
                   <select
                     value={bookForm.categoryId}
                     onChange={(e) => setBookForm({ ...bookForm, categoryId: e.target.value })}
@@ -788,18 +980,72 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Nhà xuất bản *</label>
-                  <select
-                    value={bookForm.publisherId}
-                    onChange={(e) => setBookForm({ ...bookForm, publisherId: e.target.value })}
-                    className="ui-input cursor-pointer bg-slate-900 text-white"
-                  >
-                    <option value="">-- Chọn NXB --</option>
-                    {publishers.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                  {bookErrors.publisherId && <p className="text-xs text-rose-400 mt-1">{bookErrors.publisherId}</p>}
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Nhà xuất bản * (Ghi tên)</label>
+                  <input
+                    type="text"
+                    value={bookForm.publisherName}
+                    onChange={(e) => setBookForm({ ...bookForm, publisherName: e.target.value })}
+                    placeholder="VD: NXB Trẻ, O'Reilly..."
+                    className="ui-input"
+                  />
+                  {bookErrors.publisherName && <p className="text-xs text-rose-400 mt-1">{bookErrors.publisherName}</p>}
+                </div>
+              </div>
+
+              {/* Cover Image & Live Preview */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1 flex items-center gap-1.5">
+                  <Image className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Đường dẫn Ảnh Bìa (URL)</span>
+                </label>
+                <input
+                  type="url"
+                  value={bookForm.coverImageUrl}
+                  onChange={(e) => setBookForm({ ...bookForm, coverImageUrl: e.target.value })}
+                  placeholder="https://images.unsplash.com/photo-..."
+                  className="ui-input text-xs"
+                />
+                {bookForm.coverImageUrl.trim() && (
+                  <div className="mt-2 p-2 bg-slate-950/80 rounded-lg border border-white/10 flex items-center gap-3">
+                    <img
+                      src={bookForm.coverImageUrl}
+                      alt="Preview"
+                      className="h-16 w-12 object-cover rounded shadow border border-white/20 shrink-0"
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                    <span className="text-[11px] text-slate-400 line-clamp-1">Xem trước ảnh bìa sách</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Số sách ban đầu *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={bookForm.initialCopies}
+                    onChange={(e) => setBookForm({ ...bookForm, initialCopies: parseInt(e.target.value, 10) || 1 })}
+                    className="ui-input font-semibold text-indigo-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Số trang</label>
+                  <input
+                    type="number"
+                    value={bookForm.pageCount}
+                    onChange={(e) => setBookForm({ ...bookForm, pageCount: parseInt(e.target.value, 10) || 300 })}
+                    className="ui-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Ngôn ngữ</label>
+                  <input
+                    type="text"
+                    value={bookForm.language}
+                    onChange={(e) => setBookForm({ ...bookForm, language: e.target.value })}
+                    className="ui-input"
+                  />
                 </div>
               </div>
 
@@ -818,14 +1064,14 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddBookModal(false)}
-                  className="btn-secondary rounded-lg"
+                  className="btn-secondary rounded-lg cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingBook}
-                  className="btn-primary rounded-lg"
+                  className="btn-primary rounded-lg cursor-pointer"
                 >
                   {isSubmittingBook ? 'Đang lưu...' : 'Lưu đầu sách'}
                 </button>
@@ -835,16 +1081,16 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
         </div>
       )}
 
-      {/* Modal Edit Book */}
+      {/* Modal Edit Book (Full Edit) */}
       {showEditBookModal && editingBook && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-[#0d1322] border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-[#0d1322] border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-lg font-bold text-white">Chỉnh sửa Đầu Sách</h3>
+              <h3 className="text-lg font-bold text-white">Chỉnh Sửa Tất Cả Thông Tin Sách</h3>
               <button
                 type="button"
                 onClick={() => setShowEditBookModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -860,6 +1106,16 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
                   className="ui-input"
                 />
                 {editBookErrors.title && <p className="text-xs text-rose-400 mt-1">{editBookErrors.title}</p>}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Phụ đề</label>
+                <input
+                  type="text"
+                  value={editBookForm.subtitle}
+                  onChange={(e) => setEditBookForm({ ...editBookForm, subtitle: e.target.value })}
+                  className="ui-input"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -895,18 +1151,101 @@ export const CatalogBrowse: React.FC<CatalogBrowseProps> = ({
                 {editBookErrors.authorInput && <p className="text-xs text-rose-400 mt-1">{editBookErrors.authorInput}</p>}
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Thể loại (Tự chọn)</label>
+                  <select
+                    value={editBookForm.categoryId}
+                    onChange={(e) => setEditBookForm({ ...editBookForm, categoryId: e.target.value })}
+                    className="ui-input cursor-pointer bg-slate-900 text-white"
+                  >
+                    <option value="">-- Chọn thể loại --</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Nhà xuất bản (Ghi tên)</label>
+                  <input
+                    type="text"
+                    value={editBookForm.publisherName}
+                    onChange={(e) => setEditBookForm({ ...editBookForm, publisherName: e.target.value })}
+                    placeholder="VD: NXB Trẻ..."
+                    className="ui-input"
+                  />
+                </div>
+              </div>
+
+              {/* Cover Image & Live Preview */}
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1 flex items-center gap-1.5">
+                  <Image className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Đường dẫn Ảnh Bìa (URL)</span>
+                </label>
+                <input
+                  type="url"
+                  value={editBookForm.coverImageUrl}
+                  onChange={(e) => setEditBookForm({ ...editBookForm, coverImageUrl: e.target.value })}
+                  className="ui-input text-xs"
+                />
+                {editBookForm.coverImageUrl.trim() && (
+                  <div className="mt-2 p-2 bg-slate-950/80 rounded-lg border border-white/10 flex items-center gap-3">
+                    <img
+                      src={editBookForm.coverImageUrl}
+                      alt="Preview"
+                      className="h-16 w-12 object-cover rounded shadow border border-white/20 shrink-0"
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                    <span className="text-[11px] text-slate-400 line-clamp-1">Xem trước ảnh bìa sách</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Số trang</label>
+                  <input
+                    type="number"
+                    value={editBookForm.pageCount}
+                    onChange={(e) => setEditBookForm({ ...editBookForm, pageCount: parseInt(e.target.value, 10) || 300 })}
+                    className="ui-input"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-300 mb-1">Ngôn ngữ</label>
+                  <input
+                    type="text"
+                    value={editBookForm.language}
+                    onChange={(e) => setEditBookForm({ ...editBookForm, language: e.target.value })}
+                    className="ui-input"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">Mô tả / Tóm tắt</label>
+                <textarea
+                  value={editBookForm.description}
+                  onChange={(e) => setEditBookForm({ ...editBookForm, description: e.target.value })}
+                  rows={3}
+                  className="ui-input"
+                />
+              </div>
+
               <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
                 <button
                   type="button"
                   onClick={() => setShowEditBookModal(false)}
-                  className="btn-secondary rounded-lg"
+                  className="btn-secondary rounded-lg cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingEdit}
-                  className="btn-primary rounded-lg"
+                  className="btn-primary rounded-lg cursor-pointer"
                 >
                   {isSubmittingEdit ? 'Đang cập nhật...' : 'Cập nhật sách'}
                 </button>
